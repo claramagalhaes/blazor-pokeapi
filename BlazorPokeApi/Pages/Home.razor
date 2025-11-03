@@ -1,0 +1,96 @@
+﻿@page "/"
+@using BlazorPokeApi.Models
+@inject HttpClient Http
+
+<h3>BlazorPokeApi — Buscar Pokémon</h3>
+
+<div class="mb-3">
+    <input @bind="pokemonName" @bind:event="oninput" placeholder="Digite o nome (ex: pikachu, ditto)" class="form-control" />
+</div>
+
+<div class="mb-3">
+    <button class="btn btn-primary" @onclick="Buscar">Buscar</button>
+</div>
+
+@if (isLoading)
+{
+    <p>Carregando...</p>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (pokemon is not null)
+{
+    <div class="card" style="max-width:420px">
+        <div class="card-body d-flex">
+            <div>
+                @if (!string.IsNullOrEmpty(pokemon?.Sprites?.FrontDefault))
+                {
+                    <img src="@pokemon.Sprites.FrontDefault" alt="@pokemon.Name" style="width:120px;height:120px;object-fit:contain" />
+                }
+                else
+                {
+                    <div style="width:120px;height:120px;display:flex;align-items:center;justify-content:center;border:1px solid #ddd">Sem imagem</div>
+                }
+            </div>
+            <div style="margin-left:16px">
+                <p><strong>Id:</strong> @pokemon.Id</p>
+                <p><strong>Nome:</strong> @pokemon.Name</p>
+                <p><strong>Altura:</strong> @pokemon.Height</p>
+                <p><strong>Peso:</strong> @pokemon.Weight</p>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string pokemonName = "";
+    private Pokemon? pokemon;
+    private bool isLoading = false;
+    private string? errorMessage;
+
+    private async Task Buscar()
+    {
+        errorMessage = null;
+        pokemon = null;
+
+        var nome = pokemonName?.Trim().ToLower();
+        if (string.IsNullOrWhiteSpace(nome))
+        {
+            errorMessage = "Digite o nome de um Pokémon.";
+            return;
+        }
+
+        isLoading = true;
+        try
+        {
+            var url = $"https://pokeapi.co/api/v2/pokemon/{nome}";
+            var response = await Http.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    errorMessage = $"Pokémon '{nome}' não encontrado.";
+                else
+                    errorMessage = $"Erro ao consultar a API: {(int)response.StatusCode}";
+
+                return;
+            }
+
+            var stream = await response.Content.ReadAsStreamAsync();
+            pokemon = await System.Text.Json.JsonSerializer.DeserializeAsync<Pokemon>(stream, new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Ocorreu um erro: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
